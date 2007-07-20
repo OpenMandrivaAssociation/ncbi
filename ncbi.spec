@@ -1,10 +1,17 @@
-%define name	ncbi
-%define major	6
-%define minor	1
-%define date	20050429
-%define version	%{major}.%{minor}.%{date}
-%define release	%mkrel 5
-%define libname	%mklibname %{name} %{major}
+# This spec is more or less a straight adaptation of the Debian build
+# by Aaron Ucko, version 6.1.20061015-2. All patches except the 
+# mpiBlast patch come from Debian. If updating, please check Debian 
+# build and consider merging any changes since 6.1.20061015-2, they
+# are likely needed / useful here too.
+
+%define name		ncbi
+%define major		6
+%define minor		1
+%define date		20061015
+%define version		%{major}.%{minor}.%{date}
+%define release		%mkrel 1
+%define libname		%mklibname %{name} %{major}
+%define develname	%mklibname %{name} -d
 
 Name:		%{name}
 Version:	%{version}
@@ -13,18 +20,21 @@ Summary:	NCBI software development toolkit
 Group:		Sciences/Biology
 License:	Public Domain
 URL:		http://www.ncbi.nlm.nih.gov
-Source0:	%{name}.tar.bz2
-Source2:	%{name}.make.bz2
-Source3:	%{name}.vibrate.bz2
-Patch0:		%{name}-6.1.20050429.build.patch
-Patch1:		%{name}-6.1.20050429.code.patch
-Patch2:		%{name}-6.1.20050429.man.patch
-Patch3:		%{name}-6.1.20050429.makefile.patch
-Patch4:		ncbi_Jun2005_evalue.patch
+Source0:	%{name}.tar.gz
+Source2:	ncbi.make.bz2
+Source3:	ncbi.vibrate.bz2
+# From Debian
+Patch0:		ncbi-6.1.20061015-debian-build.patch
+Patch1:		ncbi-6.1.20061015-debian-code.patch
+Patch2:		ncbi-6.1.20061015-debian-man.patch
+# From mpiBlast (CVS)
+Patch4:		ncbi_May2006_evalue.patch
 BuildRequires:	X11-devel
 BuildRequires:	lesstif-devel
 BuildRequires:	libpcre-devel
 BuildRequires:  libMesaGLU-devel
+BuildRequires:	pmake
+BuildRequires:	tcsh
 BuildRoot:	%{_tmppath}/%{name}-%{version}
 
 %description
@@ -81,13 +91,14 @@ Provides:	%{name} = %{version}-%{release}
 %description -n %{libname}
 This package provides shared library for %{name}.
 
-%package -n %{libname}-devel
+%package -n %{develname}
 Summary:        Development headers and libraries for %{name}
 Group:          Development/C
 Requires:       %{libname} = %{version}-%{release}
 Provides:       %{name}-devel = %{version}-%{release}
+Obsoletes:	%{mklibname ncbi 6 -d}
 
-%description -n %{libname}-devel
+%description -n %{develname}
 This package contains the symlinks, headers and object files needed to compile
 and link programs which use %{name}.
 
@@ -98,33 +109,106 @@ bzcat %{SOURCE3} > vibrate
 %patch0 -p 1
 %patch1 -p 1
 %patch2 -p 1
-%patch3 -p 0
 %patch4 -p 1
+#%patch5 -p1 -b .bash
 
 %build
-make \
-%if %mdkversion<200600
-        X11LIBDIR=%_prefix/X11R6/%_lib\
-%else
-        X11LIBDIR=%_libdir\
-%endif
-	NCBI_VERSION=%{major}.%{minor} \
-	NCBI_VERSION_MAJOR=%{major} \
-	NCBI_VERSION_MINOR=%{minor}
+perl -pi -e "s,CMD='make,CMD='/usr/bin/pmake,g" make/makedis.csh
+perl -pi -e 's,lregexp,lpcre,g' make/makedemo.unx
+
+pushd build
+ln -s ../make/*.unx .
+ln -s ../make/ln-if-absent .
+mv makeall.unx makefile
+
+# temporary fix for bug #32013: can be removed when that is resolved
+export LS_COLORS=""
+
+# Debian build process begins here
+
+export NCBI_LBSM_SRC=ncbi_lbsmd_stub.c
+export NCBI_LBSM_OBJ=ncbi_lbsmd_stub.o
+export LD_LIBRARY_PATH="%_builddir/ncbi/shlib:$(LD_LIBRARY_PATH)"
+
+pmake all 	X11LIBDIR=%_libdir \
+		NCBI_VERSION=%{major}.%{minor} \
+		NCBI_VERSION_MAJOR=%{major} \
+		NCBI_VERSION_MINOR=%{minor} \
+		LCL=lnx LDFLAGS1="%{optflags}" RAN="ranlib" OTHERLIBS="-lm" \
+		VIBLIBS="-lXm -lXmu -lXt -lX11" VIBFLAG="-DWIN_MOTIF" \
+		NCBI_LINKINGLIBDIR="../shlib -L../lib" \
+		CFLAGS1="-c %{optflags} -D_PNG -fPIC" \
+		LIB4=libvibrant.a LIB20=libncbidesk.a LIB28=libvibgif.a \
+		LIB30=libncbicn3d.a LIB45=libddvlib.a LIB400=libvibrantOGL.a LIB3000=libncbicn3dOGL.a
+
+pmake -f makenet.unx X11LIBDIR=%_libdir \
+		NCBI_VERSION=%{major}.%{minor} \
+		NCBI_VERSION_MAJOR=%{major} \
+		NCBI_VERSION_MINOR=%{minor} \
+		LCL=lnx LDFLAGS1="%{optflags}" RAN="ranlib" OTHERLIBS="-lm" \
+		VIBLIBS="-lXm -lXmu -lXt -lX11" VIBFLAG="-DWIN_MOTIF" \
+		NCBI_LINKINGLIBDIR="../shlib -L../lib" \
+		CFLAGS1="-c %{optflags} -fPIC" NETENTREZVERSION="2.02c2ASN1SPEC6" \
+		BLIB31=libvibnet.a OGLLIBS="-lGLU -lGL -lpng" all libncbimla.a libnetblast.a libncbitxc2.a libncbiid1.a shlib
+
+pmake all LCL=lnx X11LIBDIR=%_libdir \
+		NCBI_VERSION=%{major}.%{minor} \
+		NCBI_VERSION_MAJOR=%{major} \
+		NCBI_VERSION_MINOR=%{minor} \
+		LDFLAGS1="%{optflags}" RAN="ranlib" OTHERLIBS="-lm" \
+		VIBLIBS="-lXm -lXmu -lXt -lX11" VIBFLAG="-DWIN_MOTIF" \
+		NCBI_LINKINGLIBDIR="../shlib -L../lib" \
+		CFLAGS1="-c %{optflags} -D_PNG" \
+		LIB4=libvibrant.a LIB20=libncbidesk.a LIB28=libvibgif.a \
+		LIB30=libncbicn3d.a LIB45=libddvlib.a LIB400=libvibrantOGL.a LIB3000=libncbicn3dOGL.a
+
+pmake -f makedemo.unx X11LIBDIR=%_libdir \
+		NCBI_VERSION=%{major}.%{minor} \
+		NCBI_VERSION_MAJOR=%{major} \
+		NCBI_VERSION_MINOR=%{minor} \
+		LCL=lnx LDFLAGS1="%{optflags}" RAN="ranlib" OTHERLIBS="-lm" \
+		NCBI_LINKINGLIBDIR="../shlib -L../lib" \
+		CFLAGS1="-c %{optflags}" VIBLIBS= VIBFLAG= LIB50=-lpcre
+
+pmake -f makedemo.unx X11LIBDIR=%_libdir \
+		NCBI_VERSION=%{major}.%{minor} \
+		NCBI_VERSION_MAJOR=%{major} \
+		NCBI_VERSION_MINOR=%{minor} \
+		LCL=lnx LDFLAGS1="%{optflags}" RAN="ranlib" OTHERLIBS="-lm" \
+		NCBI_LINKINGLIBDIR="../shlib -L../lib" \
+		CFLAGS1="-c %{optflags}" VIBLIBS= VIBFLAG= THREAD_OBJ="ncbithr.o" THREAD_OTHERLIBS="-lpthread" \
+		blast blastall blastall_old blastpgp seedtop megablast rpsblast blastclust
+
+pmake -f makenet.unx X11LIBDIR=%_libdir \
+		NCBI_VERSION=%{major}.%{minor} \
+		NCBI_VERSION_MAJOR=%{major} \
+		NCBI_VERSION_MINOR=%{minor} \
+		LCL=lnx LDFLAGS1="%{optflags}" RAN="ranlib" OTHERLIBS="-lm" \
+		VIBLIBS="-lXm -lXmu -lXt -lX11" VIBFLAG="-DWIN_MOTIF" \
+		NCBI_LINKINGLIBDIR="../shlib -L../lib" \
+		CFLAGS1="-c %{optflags}" THREAD_OBJ="ncbithr.o" THREAD_OTHERLIBS="-lpthread" \
+		NETENTREZVERSION="2.02c2ASN1SPEC6" BLIB31=libvibnet.a \
+		OGLLIBS= VIBLIBS= VIB="Psequin sbtedit Nentrez udv ddv blastcl3 idfetch bl2seq asn2gb tbl2asn gene2xml entrez2 gbseqget asn2all asn2asn asn2fsa asn2xml asnval cleanasn insdseqget nps2gps spidey trna2sap trna2tbl Cn3D"
+
+# ends here
 
 %install
 rm -rf %{buildroot}
 mkdir -p %{buildroot}/%{_datadir}/%name
 
 %makeinstall \
-%if %mdkversion<200600
-	X11LIBDIR=%_prefix/X11R6/%_lib\
-%else
 	X11LIBDIR=%_libdir\
-%endif
 	NCBI_VERSION=%{major}.%{minor} \
 	NCBI_VERSION_MAJOR=%{major} \
 	NCBI_VERSION_MINOR=%{minor}
+
+# remove useless binaries - from Debian build again
+rm -f %{_bindir}/*test*
+rm -f %{_bindir}/*demo*
+rm -f %{_bindir}/dosimple
+rm -f %{_bindir}/ncbisort
+rm -f %{_bindir}/getseq
+rm -f %{_bindir}/cdscan
 
 install -m 755 vibrate %{buildroot}%{_bindir}
 cp -av build/ %{buildroot}/%{_datadir}/%name
@@ -152,6 +236,7 @@ rm -rf %{buildroot}
 %{_bindir}/bl2seq
 %{_bindir}/blast
 %{_bindir}/blastall
+%{_bindir}/blastall_old
 %{_bindir}/blastcl3
 %{_bindir}/blastclust
 %{_bindir}/blastpgp
@@ -168,6 +253,7 @@ rm -rf %{buildroot}
 %{_mandir}/man1/blast.1*
 %{_mandir}/man1/blast2.1*
 %{_mandir}/man1/blastall.1*
+%{_mandir}/man1/blastall_old.1*
 %{_mandir}/man1/blastcl3.1*
 %{_mandir}/man1/blastclust.1*
 %{_mandir}/man1/blastpgp.1*
@@ -193,9 +279,10 @@ rm -rf %{buildroot}
 %{_bindir}/asn2fsa
 %{_bindir}/asnval
 %{_bindir}/asndhuff
-%{_bindir}/cdscan
+%{_bindir}/cleanasn
 %{_bindir}/checksub
 %{_bindir}/debruijn
+%{_bindir}/dosimple
 %{_bindir}/entrcmd
 %{_bindir}/fa2htgs
 %{_bindir}/findspl
@@ -204,14 +291,18 @@ rm -rf %{buildroot}
 %{_bindir}/getfeat	
 %{_bindir}/getmesh
 %{_bindir}/getpub
-%{_bindir}/getseq
 %{_bindir}/gil2bin
 %{_bindir}/idfetch
 %{_bindir}/indexpub
+%{_bindir}/insdseqget
 %{_bindir}/makeset
+%{_bindir}/ncbisort
+%{_bindir}/nps2gps
 %{_bindir}/spidey
 %{_bindir}/sortbyquote
 %{_bindir}/tbl2asn
+%{_bindir}/trna2sap
+%{_bindir}/trna2tbl
 %{_bindir}/vecscreen
 %{_bindir}/vibrate
 %{_mandir}/man1/asn2asn.1*
@@ -225,6 +316,7 @@ rm -rf %{buildroot}
 %{_mandir}/man1/asndhuff.1*
 %{_mandir}/man1/cdscan.1*
 %{_mandir}/man1/checksub.1*
+%{_mandir}/man1/cleanasn.1*
 %{_mandir}/man1/debruijn.1*
 %{_mandir}/man1/entrcmd.1*
 %{_mandir}/man1/fa2htgs.1*
@@ -238,10 +330,14 @@ rm -rf %{buildroot}
 %{_mandir}/man1/gil2bin.1*
 %{_mandir}/man1/idfetch.1*
 %{_mandir}/man1/indexpub.1*
+%{_mandir}/man1/insdseqget.1*
 %{_mandir}/man1/makeset.1*
+%{_mandir}/man1/nps2gps.1*
 %{_mandir}/man1/sortbyquote.1*
 %{_mandir}/man1/spidey.1*
 %{_mandir}/man1/tbl2asn.1*
+%{_mandir}/man1/trna2sap.1*
+%{_mandir}/man1/trna2tbl.1*
 %{_mandir}/man1/vecscreen.1*
 
 %files tools-x11
@@ -253,19 +349,21 @@ rm -rf %{buildroot}
 %{_bindir}/ddv
 %{_bindir}/entrez2
 %{_bindir}/netentcf
+%{_bindir}/sbtedit
 %{_bindir}/udv
 %{_mandir}/man1/Nentrez.1*
 %{_mandir}/man1/Psequin.1*
 %{_mandir}/man1/ddv.1*
 %{_mandir}/man1/entrez2.1*
 %{_mandir}/man1/netentcf.1*
+%{_mandir}/man1/sbtedit.1*
 %{_mandir}/man1/udv.1*
 
 %files -n %{libname}
 %defattr(-,root,root)
 %{_libdir}/*.so.*
 
-%files -n %{libname}-devel
+%files -n %{develname}
 %defattr(-,root,root)
 %{_bindir}/asntool
 %{_bindir}/errhdr
