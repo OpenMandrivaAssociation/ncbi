@@ -287,7 +287,6 @@ rm -rf %{buildroot}
 %{_bindir}/cleanasn
 %{_bindir}/checksub
 %{_bindir}/debruijn
-%{_bindir}/dosimple
 %{_bindir}/entrcmd
 %{_bindir}/fa2htgs
 %{_bindir}/findspl
@@ -301,7 +300,6 @@ rm -rf %{buildroot}
 %{_bindir}/indexpub
 %{_bindir}/insdseqget
 %{_bindir}/makeset
-%{_bindir}/ncbisort
 %{_bindir}/nps2gps
 %{_bindir}/spidey
 %{_bindir}/sortbyquote
