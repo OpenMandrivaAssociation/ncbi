@@ -31,7 +31,7 @@ Patch2:		ncbi-6.1.20061015-debian-man.patch
 Patch4:		ncbi_May2006_evalue.patch
 BuildRequires:	X11-devel
 BuildRequires:	lesstif-devel
-BuildRequires:	libpcre-devel
+BuildRequires:	pcre-devel
 BuildRequires:  libMesaGLU-devel
 BuildRequires:	pmake
 BuildRequires:	tcsh
