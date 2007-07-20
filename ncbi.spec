@@ -208,12 +208,12 @@ mkdir -p %{buildroot}/%{_datadir}/%name
 	NCBI_VERSION_MINOR=%{minor}
 
 # remove useless binaries - from Debian build again
-rm -f %{_bindir}/*test*
-rm -f %{_bindir}/*demo*
-rm -f %{_bindir}/dosimple
-rm -f %{_bindir}/ncbisort
-rm -f %{_bindir}/getseq
-rm -f %{_bindir}/cdscan
+rm -f %{buildroot}%{_bindir}/*test*
+rm -f %{buildroot}%{_bindir}/*demo*
+rm -f %{buildroot}%{_bindir}/dosimple
+rm -f %{buildroot}%{_bindir}/ncbisort
+rm -f %{buildroot}%{_bindir}/getseq
+rm -f %{buildroot}%{_bindir}/cdscan
 
 install -m 755 vibrate %{buildroot}%{_bindir}
 cp -av build/ %{buildroot}/%{_datadir}/%name
