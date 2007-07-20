@@ -33,6 +33,11 @@ BuildRequires:	X11-devel
 BuildRequires:	lesstif-devel
 BuildRequires:	pcre-devel
 BuildRequires:  libMesaGLU-devel
+BuildRequires:	png-devel
+# As the Debian maintainer says, GNU make gets confused by ncbi's
+# horrible makefiles, so we use BSD make instead. The correct fix
+# would be to sort out the makefiles, but no-one feels much like
+# diving into THAT thorn bush.
 BuildRequires:	pmake
 BuildRequires:	tcsh
 BuildRoot:	%{_tmppath}/%{name}-%{version}
