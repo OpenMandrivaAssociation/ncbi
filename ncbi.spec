@@ -40,6 +40,7 @@ BuildRequires:	png-devel
 # diving into THAT thorn bush.
 BuildRequires:	pmake
 BuildRequires:	tcsh
+BuildRoot:	%{_tmppath}/%{name}-%{version}
 
 %description
 NCBI SOFTWARE DEVELOPMENT TOOLKIT National Center for Biotechnology
