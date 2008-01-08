@@ -32,7 +32,7 @@ Patch4:		ncbi_May2006_evalue.patch
 BuildRequires:	X11-devel
 BuildRequires:	lesstif-devel
 BuildRequires:	pcre-devel
-BuildRequires:  libMesaGLU-devel
+BuildRequires:  mesaglu-devel
 BuildRequires:	png-devel
 # As the Debian maintainer says, GNU make gets confused by ncbi's
 # horrible makefiles, so we use BSD make instead. The correct fix
