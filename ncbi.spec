@@ -9,7 +9,7 @@
 %define minor		1
 %define date		20061015
 %define version		%{major}.%{minor}.%{date}
-%define release		%mkrel 4
+%define release		%mkrel 5
 %define libname		%mklibname %{name} %{major}
 %define develname	%mklibname %{name} -d
 
