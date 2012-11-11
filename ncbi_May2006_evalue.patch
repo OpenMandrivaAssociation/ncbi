@@ -1,0 +1,178 @@
+--- ncbi/tools/blast.c.cvs	2006-09-21 21:42:36.000000000 +0800
++++ ncbi/tools/blast.c	2011-02-06 03:54:10.000000000 +0800
+@@ -5057,6 +5057,34 @@
+ 	if (retval)
+            goto BlastSetUpReturn;
+ 
++	/* mpiBLAST: if query length adjustments are supplied then set the 
++	 * effective query length instead of calculating it 
++	 * set the effective db length while we're at it */
++ 	if( !options->calculate_statistics_and_exit && options->query_adjustments != NULL ){
++ 		length_adjustment = options->query_adjustments[ options->current_queryI ];
++ 		effective_query_length = length - length_adjustment;
++		search->dblen_eff = options->effective_db_lengths[ options->current_queryI ];
++
++		/* mpiBLAST: support for query concatenation */
++		if( search->mult_queries ){
++			for( le_iter = 0; le_iter < search->mult_queries->NumQueries; ++le_iter ){
++				search->mult_queries->Adjustments[ le_iter ] = 
++					options->query_adjustments[ options->current_queryI + le_iter ];
++				search->mult_queries->DbLenEff[ le_iter ] =
++					options->effective_db_lengths[ options->current_queryI + le_iter ];
++
++				/* set the min length and the min effective length */
++				length_tmp = search->mult_queries->QueryEnds[le_iter]
++					- search->mult_queries->QueryStarts[le_iter] + 1;
++				if( search->mult_queries->MinLen > length_tmp )
++					search->mult_queries->MinLen = length_tmp;
++				length_tmp -= search->mult_queries->Adjustments[ le_iter ];
++				if( search->mult_queries->MinLenEff > length_tmp )
++					search->mult_queries->MinLenEff = length_tmp;
++			}
++		}
++
++	}else
+ 	if (options->gapped_calculation) {
+         
+         BLAST_KarlinBlkPtr kbp_gap =
+@@ -5198,6 +5226,22 @@
+ 	   }
+         }
+ 
++	/* mpiBLAST: add the effective query and db lengths to a list */
++	if( options->calculate_statistics_and_exit && options->query_adjustments != NULL ){
++		options->query_adjustments[ options->current_queryI ] = length_adjustment;
++		options->effective_db_lengths[ options->current_queryI ] = search->dblen_eff;
++
++		/* mpiBLAST: support for query concatenation */
++		if( search->mult_queries ){
++			for( le_iter = 0; le_iter < search->mult_queries->NumQueries; ++le_iter ){
++				options->query_adjustments[ options->current_queryI + le_iter ] = 
++					search->mult_queries->Adjustments[le_iter];
++				options->effective_db_lengths[ options->current_queryI + le_iter ] = 
++					search->mult_queries->DbLenEff[le_iter];
++			}
++		}
++	}
++	
+ 	for (index=search->first_context; index<=search->last_context; index++)
+ 	{
+ 		search->context[index].query->effective_length = effective_query_length;
+@@ -5452,6 +5496,8 @@
+             search->thr_info->index_callback = callback;
+ 	}
+         
++        status = 0;
++
+ 	/* Only do this if this is not a pattern search. */
+ 	if (options->isPatternSearch == FALSE && search->pbp->is_rps_blast == FALSE)
+ 	{
+@@ -5464,9 +5510,11 @@
+ 		if (options->threshold_second > 0)
+ 		{
+ 			search->wfp = search->wfp_first;
+-			if (!(search->positionBased)) /*AAS*/
++			if (!(search->positionBased)){ /*AAS*/
++			if( !options->calculate_statistics_and_exit )
+ 			    status = BlastFindWords(search, 0, search->context[index].query->length, options->threshold_second, (Uint1) index);
+-			else
++			}else
++			if( !options->calculate_statistics_and_exit )
+ 			    status = BlastNewFindWords(search, 0, search->context[index].query->length, options->threshold_second, (Uint1) index);
+ 			if (status < 0) {
+                             search->thr_info->awake_index = FALSE;
+@@ -5481,14 +5529,17 @@
+ 		{
+ 		    if (search->allocated & BLAST_SEARCH_ALLOC_WFP_SECOND)
+ 		    {
+-			if (!(search->positionBased))
++			if (!(search->positionBased)){
++			if( !options->calculate_statistics_and_exit )
+ 			    status = BlastFindWords(search, 0, search->context[index].query->length, options->threshold_second, (Uint1) index);
+-			else
++			}else
++			if( !options->calculate_statistics_and_exit )
+ 			    status = BlastNewFindWords(search, 0, search->context[index].query->length, options->threshold_second, (Uint1) index);
+ 		    }
+ 		}
+ 		else
+ 		{ 
++			if( !options->calculate_statistics_and_exit )
+ 			status = BlastNtFindWords(search, 0, search->context[index].query->length, 
+ 		 		                      (Uint1) index);
+ 		}
+--- ncbi/tools/blastdef.h.cvs	2006-05-03 22:41:50.000000000 +0800
++++ ncbi/tools/blastdef.h	2011-02-06 03:54:10.000000000 +0800
+@@ -1193,6 +1193,12 @@
+         MBDiscWordType mb_disc_type;
+ 	Uint4 NumQueries;		/*--KM for query concatenation in [t]blastn */
+         Boolean ignore_gilist;    /* Used in traceback stage to not lookup gi's */
++ 	
++ 	Boolean calculate_statistics_and_exit;	/**< mpiBLAST: calculate search statistics without performing the search */
++ 	Int8* 	query_adjustments;	/**< mpiBLAST: an array of query length adjustments, one per query */
++ 	Int8* 	effective_db_lengths;	/**< mpiBLAST: an array of effective database lengths, one per query */
++	Int4	current_queryI;		/**< mpiBLAST: The index of the query currently being processed */
++	Int8	stats[12];	/**< search statistics like hit count, extension count, etc. */
+       } BLAST_OptionsBlk, PNTR BLAST_OptionsBlkPtr;
+ 
+ 
+--- ncbi/tools/blastool.c.cvs	2006-09-21 21:42:37.000000000 +0800
++++ ncbi/tools/blastool.c	2011-02-06 03:54:10.000000000 +0800
+@@ -2808,7 +2808,7 @@
+         looking_for_gis = TRUE;
+     }
+ 
+-    if (options->gifile) {
++    if (options->gifile && !options->calculate_statistics_and_exit) {
+ 
+         if ((tmp_list = GetGisFromFile(options->gifile, &ngis))) {
+             if (bglp) {
+--- ncbi/tools/blastutl.c.cvs	2006-08-11 01:34:38.000000000 +0800
++++ ncbi/tools/blastutl.c	2011-02-06 03:54:10.000000000 +0800
+@@ -5119,6 +5119,11 @@
+           }
+         }
+ 
++/* mpiBLAST:  check the calculate_statistics_and_exit variable 
++              to decide whether the BLAST search should actually be performed
++			  or whether the master just wants to collect search statistics
++*/
++        if( !options->calculate_statistics_and_exit ){
+         /* ----- Here is real BLAST search done ------- */
+         if (search->positionBased)
+           head = BioseqBlastEngineCore(search, options, search->sbp->posMatrix);
+@@ -5129,6 +5134,34 @@
+         } else
+ 	  head = BioseqBlastEngineCore(search, options, NULL);
+ 	/* end Futamura */
++			/* mpiBLAST:  collect run statistics */
++            options->stats[0] = search->first_pass_hits;
++            options->stats[1] = search->second_pass_hits;
++            options->stats[2] = search->second_pass_trys;
++            options->stats[3] = search->first_pass_extends;
++            options->stats[4] = search->second_pass_extends;
++            options->stats[5] = search->first_pass_good_extends;
++            options->stats[6] = search->second_pass_good_extends;
++            options->stats[7] = search->number_of_seqs_better_E;
++            options->stats[8] = search->prelim_gap_no_contest;
++            options->stats[9] = search->prelim_gap_passed;
++            options->stats[10] = search->prelim_gap_attempts;
++            options->stats[11] = search->real_gap_number_of_hsps;
++		}else{
++			/* mpiBLAST: set the run statistics */
++            search->first_pass_hits = options->stats[0];
++            search->second_pass_hits = options->stats[1];
++            search->second_pass_trys = options->stats[2];
++            search->first_pass_extends = options->stats[3];
++            search->second_pass_extends = options->stats[4];
++            search->first_pass_good_extends = options->stats[5];
++            search->second_pass_good_extends = options->stats[6];
++            search->number_of_seqs_better_E = options->stats[7];
++            search->prelim_gap_no_contest = options->stats[8];
++            search->prelim_gap_passed = options->stats[9];
++            search->prelim_gap_attempts = options->stats[10];
++            search->real_gap_number_of_hsps = options->stats[11];
++	    } /* !calculate_statistics_and_exit */
+ 	
+     }
+ 

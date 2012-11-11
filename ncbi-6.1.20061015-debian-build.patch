@@ -1,0 +1,249 @@
+--- ncbi-tools6-6.1.20061015.orig/make/makeall.unx
++++ ncbi-tools6-6.1.20061015/make/makeall.unx
+@@ -1,4 +1,4 @@
+-#	makefile for asntool and ncbi core routines,
++#	-*- makefile -*- for asntool and ncbi core routines,
+ #
+ #	$Id: makeall.unx,v 6.276 2006/09/14 14:20:19 ucko Exp $
+ #
+@@ -233,7 +233,7 @@
+ 	dlgutil1.c dlgutil2.c e2trmlst.c e2docsum.c asn2graphic.c \
+ 	medview.c bspview.c gbfview.c gphview.c gphdraw.c gxydraw.c gtrdraw.c \
+ 	seqpanel.c ingengraph.c ingenext.c ingenwin.c \
+-	biosrc.c cdrgn.c import.c pubdesc.c seqsub.c mapgene.c prtgene.c salogif.c
++	biosrc.c cdrgn.c import.c pubdesc.c seqsub.c mapgene.c prtgene.c
+ 
+ SRC45 = ddvclick.c ddvgraph.c ddvopen.c ddvpanel.c
+ 
+@@ -382,7 +382,7 @@
+ 	dlgutil1.o dlgutil2.o e2trmlst.o e2docsum.o asn2graphic.o \
+ 	medview.o bspview.o gbfview.o gphview.o gphdraw.o gxydraw.o gtrdraw.o \
+ 	seqpanel.o ingengraph.o ingenext.o ingenwin.o \
+-	biosrc.o cdrgn.o import.o pubdesc.o seqsub.o mapgene.o prtgene.o salogif.o
++	biosrc.o cdrgn.o import.o pubdesc.o seqsub.o mapgene.o prtgene.o
+ 
+ OBJ45 = ddvclick.o ddvgraph.o ddvopen.o ddvpanel.o
+ 
+@@ -477,7 +477,7 @@
+ nocopy : sources $(THR_OBJ) $(LIB1) $(LIB2) $(LIB3) $(DLIB4) $(DLIB400) \
+ 	$(LIB5) $(DLIB20) $(DLIB45) $(LIB22) $(LIB23) $(LIBCOMPADJ) \
+ 	$(DLIB28) $(DLIB30) $(DLIB3000) \
+-	$(DLIB34) $(DLIB37) $(DLIB38) $(LIB50) $(LIB60) $(LIB61) $(NCBI_SHLIBS)
++	$(DLIB34) $(DLIB37) $(DLIB38) $(LIB60) $(LIB61) $(NCBI_SHLIBS)
+ 
+ sources : $(THR_SRC) $(SRC1) $(SRC2) $(SRC3) $(SRC4) $(SRC5) $(SRC20) $(SRC22) \
+     $(SRC23) $(SRC28) $(SRC30) $(SRC50) $(SRC60) $(SRC61) $(SRCCOMPADJ)
+@@ -485,7 +485,7 @@
+ ## To clean out the directory without removing make
+ ##
+ clean :
+-	-rm -f *.[acho]
++	-rm -f *.[acho] *.glo
+ 
+ .NO_PARALLEL:	copy $(ULIB4) $(ULIB30)
+ 
+@@ -643,10 +643,12 @@
+ 	cd ../shlib; make -f $(MAKESHLIB) `ls *.a | sed "s/\.a/.so/"` NCBI_OTHERLIBS=$(OTHERLIBS)
+ 	rm -f ../shlib/*.a
+ 
+-#
+-# Linux shared libs are built the same in the same manner as for SGI
+-#
+-shlib.lnx : shlib.sgi
++shlib.lnx :
++	-mkdir ../shlib
++	-rm -f ../shlib/*.a
++	ln $(NCBI_LIBDIR)/*.a ../shlib
++	cd ../shlib; make -f $(MAKESHLIB) `ls *.a | sed "s/\.a/.so.$(NCBI_VERSION_MAJOR)/"` SH1="$(CC) -o" SH2="-shared *.o"
++	rm -f ../shlib/*.a
+ 
+ shlib.sgi :
+ 	-mkdir ../shlib
+@@ -767,7 +769,7 @@
+ 	cp -fp ../algo/blast/core/*.h ../include/algo/blast/core
+ 	- mkdir -p ../include/algo/blast/composition_adjustment
+ 	$(SRCCOPY) ../algo/blast/composition_adjustment/*.c .
+-	$(SRCCOPY) ../algo/blast/composition_adjustment/*.h ../include
++#	$(SRCCOPY) ../algo/blast/composition_adjustment/*.h ../include
+ 	cp -fp ../algo/blast/composition_adjustment/*.h \
+ 		../include/algo/blast/composition_adjustment
+ 	- mkdir -p ../include/algo/blast/api
+--- ncbi-tools6-6.1.20061015.orig/make/makedemo.unx
++++ ncbi-tools6-6.1.20061015/make/makedemo.unx
+@@ -1,4 +1,4 @@
+-#	makefile for demo programs
++#	-*- makefile -*- for demo programs
+ #
+ #	$Id: makedemo.unx,v 6.85 2005/10/19 20:45:14 ucko Exp $
+ #
+@@ -215,7 +215,7 @@
+ # fa2htgs
+ 
+ fa2htgs : fa2htgs.c
+-	$(CC) -o fa2htgs $(LDFLAGS) fa2htgs.c $(LIB2) $(LIB1) $(VIBLIBS) $(OTHERLIBS)
++	$(CC) -o fa2htgs $(LDFLAGS) fa2htgs.c $(LIB2) $(LIB1) $(OTHERLIBS)
+ 
+ # getseq
+ 
+--- ncbi-tools6-6.1.20061015.orig/make/makeshlb.unx
++++ ncbi-tools6-6.1.20061015/make/makeshlb.unx
+@@ -1,4 +1,4 @@
+-#
++# -*- makefile -*-
+ #
+ #	$Id: makeshlb.unx,v 6.1 1999/03/18 17:31:11 beloslyu Exp $
+ #
+@@ -12,7 +12,91 @@
+ SH2 = `lorder *.o | tsort` $(NCBI_OTHERLIBS)
+ 
+ %.so: %.a
+-	rm -f *.o __*
++	rm -f *.o *.glo __*
+ 	ar x $<
++	case $< in \
++	    *OGL.a) for f in *.glo; do mv $$f `basename $$f .glo`.o; done ;; \
++	esac
+ 	$(SH1) $@ $(SH2)
+ 	rm -f *.o __*
++
++so=so.$(NCBI_VERSION_MAJOR).$(NCBI_VERSION_MINOR)
++
++%.$(so): %.a
++	$(CC) -shared -Wl,-soname=$*.so.$(NCBI_VERSION_MAJOR) -o $@ \
++	    -Wl,--whole-archive $< -Wl,--no-whole-archive \
++	    $($*_deps) $($*_sysdeps)
++
++%.so.$(NCBI_VERSION_MAJOR): %.$(so)
++	ln -s $< $@
++	ln -s $< $*.so
++
++# Make libncbiCacc and libncbiacc pointers to libncbiNacc, since it's
++# the most useful variant in the usual (net-only) case.  Do the same
++# for libnetentr, and link the static version into libncbiNacc.so, due
++# to a circular dependency.
++libnetentr.$(so) libncbiCacc.$(so) libncbiacc.$(so):
++	ln -s libncbiNacc.$(so) $@
++
++# Standardize on the OpenGL-enabled versions of Vibrant, since there's
++# no longer any real penalty in doing so.
++libvibrant.$(so):
++	ln -s libvibrantOGL.$(so) $@
++libncbicn3d.$(so):
++	ln -s libncbicn3dOGL.$(so) $@
++
++libblast_deps    = libblastcompadj.$(so) libncbi.$(so)
++libblastapi_deps = libblast.$(so) libncbitool.$(so)
++libblastcompadj_sysdeps = -lm
++libncbi_sysdeps  = -lm
++# libncbiCacc_deps = libncbicdr.$(so) libnetentr.a libnetcli.$(so)
++libncbiNacc_deps = libncbicdr.$(so) libnetentr.a libnetcli.$(so)
++# libncbiacc_deps  = libncbicdr.$(so)
++libncbicdr_deps  = libncbiobj.$(so)
++libncbiid1_deps  = libncbiobj.$(so) libnetcli.$(so)
++libncbimla_deps  = libncbiobj.$(so) libnetcli.$(so)
++libncbimmdb_deps = libncbiid1.$(so) libncbitool.$(so)
++libncbiobj_deps  = libncbi.$(so)
++libncbitool_deps = libblastcompadj.$(so) libncbiobj.$(so)
++libncbitxc2_deps = libncbitool.$(so) libnetcli.$(so)
++libnetblast_deps = libncbitool.$(so) libnetcli.$(so)
++libnetcli_deps   = libncbi.$(so)
++# libnetentr_deps = libncbiacc.$(so) libnetcli.$(so)
++
++libddvlib_deps        = libncbidesk.$(so)
++libncbicn3d_deps      = libncbiNacc.$(so) libddvlib.$(so)
++libncbicn3dOGL_deps   = $(libncbicn3d_deps) libvibrantOGL.$(so)
++libncbidesk_deps      = libblastapi.$(so) libncbimmdb.$(so) libvibrantOGL.$(so)
++libvibgif_deps        = libncbi.$(so)
++libvibnet_deps        = libncbiNacc.$(so) libncbidesk.$(so)
++# libvibrant_deps     = libncbi.$(so)
++# libvibrant_sysdeps  = $(VIBLIBS)
++# for ddvcolor stuff
++libvibrantOGL_deps    = libncbiobj.$(so)
++libvibrantOGL_sysdeps = $(OGLLIBS) $(VIBLIBS)
++
++# XXX - is there a way to express these programmatically?
++libblast.$(so):    $(libblast_deps)
++libblastapi.$(so): $(libblastapi_deps)
++# libncbiCacc.$(so): $(libncbiCacc_deps)
++libncbiNacc.$(so): $(libncbiNacc_deps)
++# libncbiacc.$(so):  $(libncbiacc_deps)
++libncbicdr.$(so):  $(libncbicdr_deps)
++libncbiid1.$(so):  $(libncbiid1_deps)
++libncbimla.$(so):  $(libncbimla_deps)
++libncbimmdb.$(so): $(libncbimmdb_deps)
++libncbiobj.$(so):  $(libncbiobj_deps)
++libncbitool.$(so): $(libncbitool_deps)
++libncbitxc2.$(so): $(libncbitxc2_deps)
++libnetblast.$(so): $(libnetblast_deps)
++libnetcli.$(so):   $(libnetcli_deps)
++# libnetentr.$(so): $(libnetentr_deps)
++
++libddvlib.$(so):      $(libddvlib_deps)
++# libncbicn3d.$(so):  $(libncbicn3d_deps)
++libncbicn3dOGL.$(so): $(libncbicn3dOGL_deps)
++libncbidesk.$(so):    $(libncbidesk_deps)
++libvibgif.$(so):      $(libvibgif_deps)
++libvibnet.$(so):      $(libvibnet_deps)
++# libvibrant.$(so):   $(libvibrant_deps)
++libvibrantOGL.$(so):  $(libvibrantOGL_deps)
+--- ncbi-tools6-6.1.20061015.orig/make/makenet.unx
++++ ncbi-tools6-6.1.20061015/make/makenet.unx
+@@ -1,4 +1,4 @@
+-#   makefile for network demo programs and network entrez
++#   -*- makefile -*- for network demo programs and network entrez
+ #
+ #	$Id: makenet.unx,v 6.216 2006/05/03 03:37:42 kans Exp $
+ #   test, ignore
+@@ -322,6 +322,8 @@
+ 
+ # objects & sources needed for versions of network demo programs
+ 
++OBJCN3D =       cn3dmain.o
++
+ OBJDDV = ddvmain.o
+ 
+ OBJUDV = udvmain.o
+@@ -431,10 +433,12 @@
+ 	cd ../shlib; make -f $(MAKESHLIB) `ls *.a | sed "s/\.a/.so/"` NCBI_OTHERLIBS=$(OTHERLIBS)
+ 	rm -f ../shlib/*.a
+ 
+-#
+-# Linux shared libs are built the same in the same manner as for SGI
+-#
+-shlib.lnx : shlib.sgi
++shlib.lnx :
++	-mkdir ../shlib
++	-rm -f ../shlib/*.a
++	ln $(NCBI_LIBDIR)/*.a ../shlib
++	cd ../shlib; make -f $(MAKESHLIB) `ls *.a | sed "s/\.a/.so.$(NCBI_VERSION_MAJOR)/"` SH1="$(CC) -o" SH2="-shared *.o"
++	rm -f ../shlib/*.a
+ 
+ shlib.sgi :
+ 	-mkdir ../shlib
+@@ -908,6 +912,12 @@
+ 		$(LIB23) $(LIBCOMPADJ) $(LIB3) $(LIB8) $(LIB7) $(NETCLILIB) \
+ 		$(LIB2) $(LIB1) $(VIBLIBS) $(OTHERLIBS)
+ 
++Cn3D : $(OBJCN3D) $(BENTREZLIBS) netentcf $(BLIB36)
++	$(CC) -o Cn3D $(LDFLAGS) $(OBJCN3D) $(LIB31) $(LIB3000) $(LIB20) $(LIB45) \
++		$(LIB22) $(LIB41) $(LIB23) $(LIB8) $(LIB7) $(NETCLILIB) \
++		$(LIB400) $(LIB3) $(LIB2) $(LIB1) $(VIBLIBS) $(OTHERLIBS) \
++		$(OGLLIBS)
++
+ ddv    : $(OBJDDV)
+ 	$(CC) -o ddv $(LDFLAGS) $(OBJDDV) $(LIB41) $(LIB31) $(LIB20) $(LIB61) $(LIB60) $(LIB22) $(LIB45) \
+ 	$(LIB8) $(LIB7) $(NETCLILIB) $(LIB3) $(LIB4) $(LIB23) \
+@@ -1146,11 +1156,11 @@
+ 
+ # 'query' program used as WWW Entrez server
+ query : query.c sumutils.c $(BLIB27) $(BLIB25) $(BLIB22)
+-	$(CC) -o query $(LDFLAGS) query.c sumutils.c $(LIB25) $(LIB27) $(LIB22) $(LIB5) $(LIB3) $(LIB2) $(LIB1) $(OTHERLIBS)
++	$(CC) -o query $(LDFLAGS) query.c sumutils.c $(LIB25) $(LIB27) $(LIB22) $(LIB41) $(LIB5) $(LIB3) $(LIB2) $(LIB1) $(OTHERLIBS)
+ 
+ # 'query' program used as WWW Entrez server
+ Nquery : query.c sumutils.c $(BLIB27) $(BLIB25) $(BLIB22) $(BENTREZLIBS)
+-	$(CC) -o Nquery $(LDFLAGS) query.c sumutils.c $(LIB25) $(LIB27) $(LIB22) $(ENTREZLIBS) $(LIB2) $(LIB1) $(OTHERLIBS)
++	$(CC) -o Nquery $(LDFLAGS) query.c sumutils.c $(LIB25) $(LIB27) $(LIB22) $(LIB41) $(ENTREZLIBS) $(LIB2) $(LIB1) $(OTHERLIBS)
+ 
+ 
+ # srchnt - pattern match REN search

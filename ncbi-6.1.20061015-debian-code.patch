@@ -1,0 +1,195 @@
+--- ncbi-tools6-6.1.20061015.orig/api/txalign.c
++++ ncbi-tools6-6.1.20061015/api/txalign.c
+@@ -6284,7 +6284,7 @@
+             if(seq_int1 != NULL) {
+                 
+                 /* This line should be checked for correctness */
+-                if((line1[line_index] = BSGetByte(b_store)) == EOF)
++                if((line1[line_index] = BSGetByte(b_store)) == (Char)EOF)
+                     line1[line_index] = '?';
+                 
+                 if(dna_strand != Seq_strand_minus)
+--- ncbi-tools6-6.1.20061015.orig/api/aliread.c
++++ ncbi-tools6-6.1.20061015/api/aliread.c
+@@ -383,7 +383,7 @@
+   Int4    segmentLen = 0;
+   Int4    segmentCount = 1;
+   Boolean done = FALSE;
+-  Char    ch = 0;
++  Int2    ch = 0;
+ 
+   /* Allocate memory for the line.  More */
+   /* can be added later as necessary.    */
+@@ -402,12 +402,12 @@
+ 
+       /* Process the current character */
+ 
+-      ch = (Char) NLM_GETC (alignFilePtr);
++      ch = NLM_GETC (alignFilePtr);
+ 
+       if (ch == '\n')
+ 	{
+ 	  done = TRUE;
+-	  ch = (Char) NLM_GETC (alignFilePtr);
++	  ch = NLM_GETC (alignFilePtr);
+ 	  if (ch != '\r') {
+ 	    ungetc (ch, alignFilePtr);
+ 	  
+--- ncbi-tools6-6.1.20061015.orig/corelib/ncbienv.c
++++ ncbi-tools6-6.1.20061015/corelib/ncbienv.c
+@@ -803,6 +803,8 @@
+     if (fp == NULL) {
+       path[0] = '\0';
+       pth = getenv ("NCBI");
++      if (pth == NULL)
++	pth = "/etc/ncbi";
+       if (pth != NULL) {
+         Nlm_FileBuildPath(path, pth, str + 1);
+         fp = Ncbienv_FileOpen (path, "r");
+--- ncbi-tools6-6.1.20061015.orig/corelib/ncbimain.c
++++ ncbi-tools6-6.1.20061015/corelib/ncbimain.c
+@@ -67,6 +67,7 @@
+ #pragma segment NlmSegA
+ #endif
+ 
++extern Nlm_Int2 Nlm_Main(void) __attribute__((weak));
+ 
+ /*****************************************************************************
+ *
+@@ -95,7 +96,12 @@
+   /* Initialize connection library's logger, registry and lock */
+   CONNECT_Init(0);
+ 
+-  retval = Nlm_Main();
++  if (Nlm_Main) {
++    retval = Nlm_Main();
++  } else {
++    ErrPost(0, 0, "Neither main nor Nlm_Main defined by program.");
++    retval = -1;
++  }
+ 
+   NlmThreadJoinAll();
+ 
+--- ncbi-tools6-6.1.20061015.orig/desktop/bspview.c
++++ ncbi-tools6-6.1.20061015/desktop/bspview.c
+@@ -2409,13 +2409,13 @@
+     }
+ #endif
+ #ifdef WIN_MOTIF
+-  argv [0] = "netscape";
++  argv [0] = "www-browser";
+   argv [1] = url;
+   argv [2] = NULL;
+   child = fork();
+   if(child == 0) {
+-     if (execvp ("netscape", argv) == -1) {
+-        Message (MSG_POST, "Unable to launch netscape");
++     if (execvp ("www-browser", argv) == -1) {
++        Message (MSG_POST, "Unable to launch browser");
+         exit(-1);
+     }
+   }
+--- ncbi-tools6-6.1.20061015.orig/desktop/ingenwin.c
++++ ncbi-tools6-6.1.20061015/desktop/ingenwin.c
+@@ -3114,7 +3114,7 @@
+         len++;
+      }
+      c = (Char)fgetc(fp);
+-     if (c==EOF) {
++     if (c==(Char)EOF) {
+        return NULL;
+      }
+   }
+--- ncbi-tools6-6.1.20061015.orig/network/id1arch/idfetch.c
++++ ncbi-tools6-6.1.20061015/network/id1arch/idfetch.c
+@@ -201,6 +201,7 @@
+ 
+ static Boolean ProcessOneDocSum (Int4 num, Int4Ptr uids);
+ static void EntrezQuery(char *query);
++static int TryGetGi(int choice, char *accession, char *name, int version);
+ 
+ static Int4 BEGetUidsFromQuery(CharPtr query, Uint4Ptr PNTR uids,
+                                Boolean is_na, Boolean count_only);
+--- ncbi-tools6-6.1.20061015.orig/vibrant/netscape.c
++++ ncbi-tools6-6.1.20061015/vibrant/netscape.c
+@@ -548,9 +548,8 @@
+     }
+ 
+     /* ---------- child process ------------ */
+-    if (execlp("netscape", "netscape", url, NULL) < 0  &&
+-        execl(NETSCAPE_PATH, NETSCAPE_PATH, url, NULL) < 0) {
+-        Message(MSG_ERROR, "Failure to open URL in netscape window");
++    if (execlp("sensible-browser", "sensible-browser", url, NULL) < 0) {
++        Message(MSG_ERROR, "Failure to open URL in browser window");
+         exit(1);
+     }
+ 
+--- ncbi-tools6-6.1.20061015.orig/vibrant/shim3d.c
++++ ncbi-tools6-6.1.20061015/vibrant/shim3d.c
+@@ -327,7 +327,8 @@
+ #include <ddvcolor.h>
+ 
+ #if defined(_OPENGL) && defined(_PNG)
+-TOGL_Data *Cn3D_GetCurrentOGLData(void); /* in cn3dxprt.c */
++/* In cn3dxprt.c; declared weak here to avoid dependency loops. */
++extern TOGL_Data *Cn3D_GetCurrentOGLData(void) __attribute__((weak));
+ #endif
+ 
+ 
+@@ -2711,6 +2712,9 @@
+     if (OGL_Data == NULL)
+         return;
+ 
++    if (!OGL_Data->BoundBox.set)
++        OGL_ClearBoundBox(&(OGL_Data->BoundBox));
++
+     OGL_Data->MaxSize = (Nlm_FloatLo)
+         fabs(OGL_Data->BoundBox.x[0] - OGL_Data->BoundBox.x[1]);
+     diff = fabs(OGL_Data->BoundBox.y[0] - OGL_Data->BoundBox.y[1]);
+@@ -2924,7 +2928,15 @@
+     png_structp png_ptr = NULL;
+     png_infop info_ptr = NULL;
+     Nlm_Boolean doInterlacing = TRUE;
+-    TOGL_Data *OGL_Data = (TOGL_Data *)(Cn3D_GetCurrentOGLData());
++    TOGL_Data *OGL_Data;
++    
++    if (!Cn3D_GetCurrentOGLData) {
++      Message(MSG_ERROR, "PNG output unavailable; "
++	      "please relink application with -lncbicn3d.");
++      return;
++    }
++    
++    OGL_Data = (TOGL_Data *)(Cn3D_GetCurrentOGLData());
+ 
+ #if defined(WIN_MOTIF)
+     GLint glSize;
+@@ -3705,4 +3717,3 @@
+     if (fblock)
+         MemFree(fblock);
+ }
+-
+--- ncbi-tools6-6.1.20061015.orig/vibrant/vibwndws.c
++++ ncbi-tools6-6.1.20061015/vibrant/vibwndws.c
+@@ -6717,6 +6717,8 @@
+ #endif
+ }
+ 
++extern Nlm_Int2 Nlm_Main(void) __attribute__((weak));
++
+ #ifdef WIN_MAC
+ #ifdef OS_UNIX_DARWIN
+ int main (int argc, char *argv[]) 
+@@ -7013,7 +7015,12 @@
+   /* Initialize connection library's logger, registry and lock */
+   CONNECT_Init(0);
+ 
+-  retval = Nlm_Main ();
++  if (Nlm_Main) {
++    retval = Nlm_Main();
++  } else {
++    ErrPost(0, 0, "Neither main nor Nlm_Main defined by program.");
++    retval = -1;
++  }
+ 
+   Nlm_CleanUpWindows ();
+   Nlm_CleanUpDrawingTools ();
