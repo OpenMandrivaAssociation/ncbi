@@ -19,7 +19,7 @@ Release:	%{release}
 Summary:	NCBI software development toolkit
 Group:		Sciences/Biology
 License:	Public Domain
-URL:		http://www.ncbi.nlm.nih.gov
+URL:		https://www.ncbi.nlm.nih.gov
 Source0:	%{name}.tar.gz
 Source2:	ncbi.make.bz2
 Source3:	ncbi.vibrate.bz2
